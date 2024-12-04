@@ -1,3 +1,5 @@
+########################################### Downloading ########################
+
 anos <- lubridate::year(lubridate::today())
 meses <- lubridate::month(lubridate::today()) - 1
 
@@ -41,7 +43,7 @@ for (item in arquivos_combinados) {
 
 # adicionar trycath erro parecido com comexstat
 # tentar verificar se é possivel criar pasta por ano para o exercicio ficar ano mes
-
+#################################################### Empresas ##################
 setwd("data")
 
 cnpj_empresas_enderecos <- fs::dir_ls(glob = "*Empresas*.zip")
@@ -70,14 +72,8 @@ cnpj_empresa <- cnpj_empresas_lista |> dplyr::bind_rows() |>
 
 rm(cnpj_empresas_lista)
 
-cnpj_empresa |> dplyr::glimpse()
+#################################################### Decodificador #############
 
-cnpj_empresa$porte_empresa |> unique()
-
-
-cnpj_empresa |> dplyr::glimpse()
-
-getwd()
 
 cnpj_decodificador_enderecos <-
 fs::dir_ls(glob = "*Cnaes*.zip|*Motivos*.zip|*Municipios*.zip|*Naturezas*.zip|
@@ -98,4 +94,74 @@ for (i in seq_along(cnpj_decodificador_enderecos)){
                      
 }
 
-cnpj_decodificador_lista
+cnpj_decodificador_lista[[1]] <- cnpj_decodificador_lista[[1]] |>
+  dplyr::rename(cnaes = 1, cnaes_decodificado = 2)
+
+cnpj_decodificador_lista[[2]] <- cnpj_decodificador_lista[[2]] |>
+  dplyr::rename(motivos = 1, motivos_decodificado = 2)
+
+cnpj_decodificador_lista[[3]] <- cnpj_decodificador_lista[[3]] |>
+  dplyr::rename(municipios = 1, municipios_decodificado = 2)
+
+cnpj_decodificador_lista[[4]] <- cnpj_decodificador_lista[[4]] |>
+  dplyr::rename(natureza_juridica = 1, natureza_juridica_decodificado = 2)
+
+cnpj_decodificador_lista[[5]] <- cnpj_decodificador_lista[[5]] |>
+  dplyr::rename(paises = 1, paises_decodificado = 2)
+
+cnpj_decodificador_lista[[6]] <- cnpj_decodificador_lista[[6]] |>
+  dplyr::rename(qualificacao_responsavel = 1,
+                qualificacao_responsavel_decodificado = 2)
+
+############### Empresa Continuação
+
+for(i in seq_along(cnpj_decodificador_lista)){
+  tryCatch({
+  cnpj_empresa <- cnpj_empresa |>
+    dplyr::left_join(cnpj_decodificador_lista[[i]])
+  }, error = function(err) {warning("file could not be join")})
+}
+
+cnpj_empresa <- cnpj_empresa |>
+  dplyr::mutate(porte_empresa =
+                  dplyr::case_when(
+                    porte_empresa == "00" ~ "Não Informado",
+                    porte_empresa == "01" ~ "Micro Empresa",
+                    porte_empresa == "03" ~ "Empresa de Pequeno Porte",
+                    porte_empresa == "05" ~ "Demais"), .keep = "unused"
+                )
+
+cnpj_empresa <- cnpj_empresa |>
+  dplyr::mutate(estado_responsavel =
+                  stringr::str_extract(ente_federativo_responsavel,
+                                       "(?<=-\\s).*")
+                )
+
+cnpj_empresa <- cnpj_empresa |> dplyr::select(- natureza_juridica,
+                                              - qualificacao_responsavel)
+
+# writing PostgreSQL
+
+conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
+                                dbname = "observatorio_db",
+                                host = "10.43.88.8",
+                                port = "5502",
+                                user = "admin",
+                                password = "adminadmin")
+
+RPostgres::dbListTables(conexao)
+
+schema_name <- "ministerio_fazenda_cnpj"
+
+table_name <- "cnpj_empresa"
+
+DBI::dbSendQuery(conexao, paste0("CREATE SCHEMA IF NOT EXISTS ", schema_name))
+
+RPostgres::dbWriteTable(conexao,
+                        name = DBI::Id(schema = schema_name,table = table_name),
+                        value = cnpj_empresa,
+                        row.names = FALSE, overwrite = TRUE)
+
+RPostgres::dbDisconnect(conexao)
+
+rm()
