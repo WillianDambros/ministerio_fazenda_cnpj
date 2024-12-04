@@ -38,12 +38,14 @@ for (item in arquivos_combinados) {
 }
 
 
+
 # adicionar trycath erro parecido com comexstat
 # tentar verificar se é possivel criar pasta por ano para o exercicio ficar ano mes
 
 setwd("data")
 
 cnpj_empresas_enderecos <- fs::dir_ls(glob = "*Empresas*.zip")
+
 cnpj_empresas_lista <- vector(mode = "list",
                               length = length(cnpj_empresas_enderecos))
 
@@ -67,3 +69,33 @@ cnpj_empresa <- cnpj_empresas_lista |> dplyr::bind_rows() |>
                 ente_federativo_responsavel = 7)
 
 rm(cnpj_empresas_lista)
+
+cnpj_empresa |> dplyr::glimpse()
+
+cnpj_empresa$porte_empresa |> unique()
+
+
+cnpj_empresa |> dplyr::glimpse()
+
+getwd()
+
+cnpj_decodificador_enderecos <-
+fs::dir_ls(glob = "*Cnaes*.zip|*Motivos*.zip|*Municipios*.zip|*Naturezas*.zip|
+           |*Paises*.zip|*Qualificacoes*.zip")
+
+cnpj_decodificador_lista <- vector(mode = "list",
+                             length = length(cnpj_decodificador_enderecos))
+
+for (i in seq_along(cnpj_decodificador_enderecos)){
+  
+  cnpj_decodificador_lista[[i]] <-
+    readr::read_csv2(cnpj_decodificador_enderecos[i],
+                     locale = readr::locale(encoding = "latin1",
+                                            decimal_mark = ","),
+                     col_names = F,
+                     col_types = readr::cols(.default = readr::col_character()
+                     ))
+                     
+}
+
+cnpj_decodificador_lista
