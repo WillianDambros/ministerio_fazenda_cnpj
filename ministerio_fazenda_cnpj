@@ -139,15 +139,19 @@ cnpj_empresa <- cnpj_empresa |>
 
 cnpj_empresa <- cnpj_empresa |> dplyr::select(- natureza_juridica,
                                               - qualificacao_responsavel)
-
+# Avaliar com mais cuidado o codigo gpt * talvez adicionar latin1 no codigo de leitura incial conforme está o codigo do dicionario
+cnpj_empresa <-
+  cnpj_empresa |>
+  dplyr::mutate(across(everything(),
+                       ~ iconv(., from = "latin1", to = "UTF-8", sub = "")))
 # writing PostgreSQL
 
 conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
                                 dbname = "##########",
-                                host = "##########",
-                                port = "###########",
-                                user = "############",
-                                password = "###############")
+                                host = "###########",
+                                port = "##########",
+                                user = "##########",
+                                password = "############")
 
 RPostgres::dbListTables(conexao)
 
@@ -164,4 +168,76 @@ RPostgres::dbWriteTable(conexao,
 
 RPostgres::dbDisconnect(conexao)
 
-rm()
+rm(cnpj_empresa)
+
+################################################## Estabelecimentos ############
+setwd("data")
+cnpj_estabelecimentos_endereco <- fs::dir_ls(glob = "*Estabelecimentos1*.zip")
+
+cnpj_estabelecimentos_lista <- vector(mode = "list",
+                              length = length(cnpj_estabelecimentos_endereco))
+
+cnpj_estabelecimentos_lista
+for(i in seq_along(cnpj_estabelecimentos_endereco)){
+  cnpj_estabelecimentos_lista[[i]] <- readr::read_csv2(cnpj_estabelecimentos_endereco,
+                                               col_names = F,
+                                               col_types = readr::cols(
+                                                 "X7" = readr::col_date(format = "%Y%m%d"),
+                                                 "X11" = readr::col_date(format = "%Y%m%d"),
+                                                 "X30" = readr::col_date(format = "%Y%m%d"),
+                                                 .default = readr::col_character()
+                                               )) |>
+    dplyr::filter(X20 == "MT")
+}
+
+cnpj_estabelecimentos <- cnpj_estabelecimentos_lista |>
+  dplyr::bind_rows() |>
+  dplyr::rename(cnpj_basico = 1,
+                cnpj_ordem = 2,
+                cnpj_dv = 3,
+                matriz_filial = 4,
+                nome_fantasia = 5,
+                situacao_cadastral = 6,
+                data_situacao_cadastral = 7,
+                motivo_situacao_cadastral = 8,
+                nome_cidade_exterior = 9,
+                pais = 10,
+                data_inicio_atividades =11,
+                cnae_fiscal = 12,
+                cnae_fiscal_secundaria = 13,
+                tipo_logradouro = 14,
+                logradouro = 15,
+                numero = 16,
+                complemento = 17,
+                bairro = 18,
+                cep = 19,
+                uf = 20,
+                municipio = 21,
+                ddd1 = 22,
+                telefone1 = 23,
+                ddd2 = 24,
+                telefone2 = 25,
+                ddd_fax = 26,
+                fax = 27,
+                correio_eletronico = 28,
+                situacao_especial = 29,
+                data_situacao_especial = 30)
+
+
+rm(cnpj_empresas_lista)
+
+
+cnpj_estabelecimentos |> dplyr::glimpse()
+
+
+cnpj_estabelecimentos$data_situacao_cadastral |> unique()
+
+
+
+
+
+
+
+
+
+
