@@ -1,0 +1,230 @@
+
+########################################### Downloading ########################
+dir.create("data")
+
+anos <- lubridate::year(lubridate::today())
+meses <- lubridate::month(lubridate::today()) - 1
+
+# Combina os arquivos das duas categorias
+arquivos_combinados <- list(
+  list(tipo = "Empresas", nomes = c("Empresas", "Estabelecimentos", "Socios"),
+       indices = 0:9),
+  list(tipo = "Outros", nomes = c("Cnaes", "Motivos", "Municipios", "Naturezas",
+                                  "Paises", "Qualificacoes", "Simples"),
+       indices = NULL)
+)
+
+# Loop único
+for (item in arquivos_combinados) {
+  tipo <- item$tipo
+  nomes <- item$nomes
+  indices <- item$indices
+  
+  for (nome in nomes) {
+    if (!is.null(indices)) {
+      for (indice in indices) {
+        curl::curl_download(
+          paste0("https://arquivos.receitafederal.gov.br/",
+                 "dados/cnpj/dados_abertos_cnpj/",
+                 anos, "-", meses, "/", nome, indice, ".zip"),
+          destfile = paste0("data/", anos, "_", meses, "_", nome, indice, ".zip")
+        )
+      }
+    } else {
+      curl::curl_download(
+        paste0("https://arquivos.receitafederal.gov.br/",
+               "dados/cnpj/dados_abertos_cnpj/",
+               anos, "-", meses, "/", nome, ".zip"),
+        destfile = paste0("data/", anos, "_", meses, "_", nome, ".zip")
+      )
+    }
+  }
+}
+
+
+
+# adicionar trycath erro parecido com comexstat
+# tentar verificar se é possivel criar pasta por ano para o exercicio ficar ano mes
+
+#################################################### Decodificador #############
+
+cnpj_decodificador_enderecos <-
+fs::dir_ls(glob = "*Cnaes*.zip|*Motivos*.zip|*Municipios*.zip|*Naturezas*.zip|
+           |*Paises*.zip|*Qualificacoes*.zip")
+
+cnpj_decodificador_lista <- vector(mode = "list",
+                             length = length(cnpj_decodificador_enderecos))
+
+for (i in seq_along(cnpj_decodificador_enderecos)){
+  
+  cnpj_decodificador_lista[[i]] <-
+    readr::read_csv2(cnpj_decodificador_enderecos[i],
+                     locale = readr::locale(encoding = "latin1",
+                                            decimal_mark = ","),
+                     col_names = F,
+                     col_types = readr::cols(.default = readr::col_character()
+                     ))
+                     
+}
+
+cnpj_decodificador_lista[[1]] <- cnpj_decodificador_lista[[1]] |>
+  dplyr::rename(cnaes = 1, cnaes_decodificado = 2)
+
+cnpj_decodificador_lista[[2]] <- cnpj_decodificador_lista[[2]] |>
+  dplyr::rename(motivos_situacao_cadastral = 1,
+                motivos_situacao_cadastral_decodificado = 2)
+
+cnpj_decodificador_lista[[3]] <- cnpj_decodificador_lista[[3]] |>
+  dplyr::rename(municipios = 1, municipios_decodificado = 2)
+
+cnpj_decodificador_lista[[4]] <- cnpj_decodificador_lista[[4]] |>
+  dplyr::rename(natureza_juridica = 1, natureza_juridica_decodificado = 2)
+
+cnpj_decodificador_lista[[5]] <- cnpj_decodificador_lista[[5]] |>
+  dplyr::rename(paises = 1, paises_decodificado = 2)
+
+cnpj_decodificador_lista[[6]] <- cnpj_decodificador_lista[[6]] |>
+  dplyr::rename(qualificacao_responsavel = 1,
+                qualificacao_responsavel_decodificado = 2)
+
+
+################################################## Estabelecimentos ############
+
+
+# Fazendo conexão com o banco de dados
+
+conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
+                                dbname = "#######",
+                                host = "########",
+                                port = "#######",
+                                user = "##########",
+                                password = "###########")
+
+RPostgres::dbListTables(conexao)
+
+schema_name <- "ministerio_fazenda_cnpj"
+
+table_name <- "cnpj_estabelecimentos"
+
+DBI::dbSendQuery(conexao, paste0("CREATE SCHEMA IF NOT EXISTS ", schema_name))
+
+
+############ Estabelecimentos
+
+setwd("data")
+
+cnpj_arquivos <- 0:9
+
+# Loop para ler arquivos por vez
+for (h in cnpj_arquivos) {
+  
+  cnpj_estabelecimentos_endereco <-
+    fs::dir_ls(glob = paste0("*Estabelecimentos", h,"*.zip"))
+  
+  cnpj_estabelecimentos_lista <- vector(
+    mode = "list", length = length(cnpj_estabelecimentos_endereco))
+  
+  for(i in seq_along(cnpj_estabelecimentos_endereco)){
+    
+    cnpj_estabelecimentos_lista[[i]] <-
+      readr::read_csv2(cnpj_estabelecimentos_endereco,
+                       locale = readr::locale(encoding = "latin1",
+                                              decimal_mark = ","),
+                       col_names = F,
+                       col_types = readr::cols(
+                         "X7" = readr::col_date(format = "%Y%m%d"),
+                         "X11" = readr::col_date(format = "%Y%m%d"),
+                         "X30" = readr::col_date(format = "%Y%m%d"),
+                         .default = readr::col_character()
+                         )) |>
+      dplyr::filter(X20 == "MT")
+    }
+  
+  # Nomeando Colunas
+  cnpj_estabelecimentos <- cnpj_estabelecimentos_lista |>
+    dplyr::bind_rows() |>
+    dplyr::rename(cnpj_basico = 1,
+                  cnpj_ordem = 2,
+                  cnpj_dv = 3,
+                  matriz_filial = 4,
+                  nome_fantasia = 5,
+                  situacao_cadastral = 6,
+                  data_situacao_cadastral = 7,
+                  motivos_situacao_cadastral = 8,
+                  nome_cidade_exterior = 9,
+                  paises = 10,
+                  data_inicio_atividades =11,
+                  cnaes = 12,
+                  cnaes_fiscal_secundaria = 13,
+                  tipo_logradouro = 14,
+                  logradouro = 15,
+                  numero = 16,
+                  complemento = 17,
+                  bairro = 18,
+                  cep = 19,
+                  uf = 20,
+                  municipios = 21,
+                  ddd1 = 22,
+                  telefone1 = 23,
+                  ddd2 = 24,
+                  telefone2 = 25,
+                  ddd_fax = 26,
+                  fax = 27,
+                  correio_eletronico = 28,
+                  situacao_especial = 29,
+                  data_situacao_especial = 30)
+  
+  # Decodificado Dicionario
+  for(j in seq_along(cnpj_decodificador_lista)){
+    tryCatch({
+      cnpj_estabelecimentos <- cnpj_estabelecimentos |>
+        dplyr::left_join(cnpj_decodificador_lista[[j]])
+    }, error = function(err) {warning("file could not be join")})
+    }
+  
+  cnpj_estabelecimentos <- cnpj_estabelecimentos |>
+    dplyr::select(- motivos_situacao_cadastral,
+                  - municipios,
+                  - paises)
+  # Decodificando Manual
+  cnpj_estabelecimentos <- cnpj_estabelecimentos |>
+    dplyr::mutate(matriz_filial =
+                    dplyr::case_when(
+                      matriz_filial == "1" ~ "Matriz",
+                      matriz_filial == "2" ~ "Filial"), .keep = "unused"
+                  )
+  cnpj_estabelecimentos <- cnpj_estabelecimentos |>
+    dplyr::mutate(situacao_cadastral =
+                    dplyr::case_when(
+                      situacao_cadastral == "01" ~ "Nula",
+                      situacao_cadastral == "02" ~ "Ativa",
+                      situacao_cadastral == "03" ~ "Suspensa",
+                      situacao_cadastral == "04" ~ "Inapta",
+                      situacao_cadastral == "08" ~ "Baixada"), .keep = "unused"
+                  ) #pensar em talvez juntar cnpj, dentre outros como cnae e atribuir latitude e longitude
+  
+  # writing PostgreSQL
+  if (h == 0) {
+    RPostgres::dbWriteTable(
+      conexao,
+      name = DBI::Id(schema = schema_name, table = table_name),
+      value = cnpj_estabelecimentos,
+      row.names = FALSE,
+      overwrite = TRUE
+      )
+    } else {
+      # Inserir os dados na tabela existente (append = TRUE)
+      RPostgres::dbWriteTable(
+        conexao,
+        name = DBI::Id(schema = schema_name, table = table_name),
+        value = cnpj_estabelecimentos,
+        row.names = FALSE,
+        append = TRUE
+      )
+      }
+
+  cnpj_estabelecimentos |> dplyr::glimpse()
+  print(h) 
+} #fim do loop
+
+RPostgres::dbDisconnect(conexao)
