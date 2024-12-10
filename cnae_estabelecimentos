@@ -94,11 +94,11 @@ cnpj_decodificador_lista[[6]] <- cnpj_decodificador_lista[[6]] |>
 # Fazendo conexão com o banco de dados
 
 conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
-                                dbname = "#######",
-                                host = "########",
-                                port = "#######",
-                                user = "##########",
-                                password = "###########")
+                                dbname = "########",
+                                host = "##########",
+                                port = "############",
+                                user = "###########",
+                                password = "##############")
 
 RPostgres::dbListTables(conexao)
 
@@ -184,15 +184,16 @@ for (h in cnpj_arquivos) {
   
   cnpj_estabelecimentos <- cnpj_estabelecimentos |>
     dplyr::select(- motivos_situacao_cadastral,
-                  - municipios,
                   - paises)
   # Decodificando Manual
+  
   cnpj_estabelecimentos <- cnpj_estabelecimentos |>
     dplyr::mutate(matriz_filial =
                     dplyr::case_when(
                       matriz_filial == "1" ~ "Matriz",
                       matriz_filial == "2" ~ "Filial"), .keep = "unused"
                   )
+  
   cnpj_estabelecimentos <- cnpj_estabelecimentos |>
     dplyr::mutate(situacao_cadastral =
                     dplyr::case_when(
@@ -202,6 +203,31 @@ for (h in cnpj_arquivos) {
                       situacao_cadastral == "04" ~ "Inapta",
                       situacao_cadastral == "08" ~ "Baixada"), .keep = "unused"
                   ) #pensar em talvez juntar cnpj, dentre outros como cnae e atribuir latitude e longitude
+  
+  cnpj_estabelecimentos <- cnpj_estabelecimentos |>
+    dplyr::mutate(
+      cnae_grande_grupamento_novocaged =
+        dplyr::case_when(
+          stringr::str_sub(cnaes, 1, 2) %in% c("01", "02", "03") ~ "Agropécuaria",
+          stringr::str_sub(cnaes, 1, 2) %in% c("45", "46", "47") ~ "Comércio",
+          stringr::str_sub(cnaes, 1, 2) %in% c("41", "42", "43") ~ "Construção",
+          
+          stringr::str_sub(cnaes, 1, 2) %in% c("05", "06", "07", "08", "09", "10",
+                                               "11", "12", "13", "14", "15", "16",
+                                               "17", "18", "19", "20", "21", "22",
+                                               "23", "24", "25", "26", "27", "28",
+                                               "29", "30","31", "32", "33", "34",
+                                               "35", "36", "37", "38","39") ~ "Indústria",
+          
+          stringr::str_sub(cnaes, 1, 2) %in% c("49", "50", "51", "52", "53", "55",
+                                               "56", "58", "59", "60", "61", "62",
+                                               "63", "64", "65", "66", "68", "69",
+                                               "70", "71", "72", "73", "74", "75",
+                                               "77", "78", "79", "80", "81", "82",
+                                               "84", "85", "86", "87", "88","90",
+                                               "91", "92", "93", "94", "95", "96",
+                                               "97", "99") ~ "Construção"
+          ))
   
   # writing PostgreSQL
   if (h == 0) {
