@@ -88,13 +88,43 @@ cnpj_decodificador_lista[[6]] <- cnpj_decodificador_lista[[6]] |>
                 qualificacao_responsavel_decodificado = 2)
 
 
+####################################### Compilado_Decodificador ################
+setwd("data")
+
+compilado_decodificador_endereço <-
+  paste0("https://github.com/WillianDambros/data_source/raw/",
+         "refs/heads/main/compilado_decodificador.xlsx")
+
+decodificador_endereco <- paste0(getwd(), "/compilado_decodificador.xlsx")
+
+curl::curl_download(compilado_decodificador_endereço,
+                    decodificador_endereco)
+
+"compilado_decodificador.xlsx" |> readxl::excel_sheets()
+
+territorialidade_sedec <- 
+  readxl::read_excel("compilado_decodificador.xlsx",
+                     sheet =  "territorialidade_municipios_mt",
+                     col_types = "text") |>
+  dplyr::select("territorio_geo_munícipios",
+                "rpseplan10340_regiao_decodificado",
+                "imeia_regiao",
+                "territorio_latitude", "territorio_longitude")
+
+territorialidade_sedec <- territorialidade_sedec |>
+  dplyr::rename(municipios_decodificado = territorio_geo_munícipios)
+
+
+territorialidade_sedec$municipios_decodificado <-
+  toupper(territorialidade_sedec$municipios_decodificado)
+
 ################################################## Estabelecimentos ############
 
 
 # Fazendo conexão com o banco de dados
 
 conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
-                                dbname = "########",
+                                dbname = "#########",
                                 host = "##########",
                                 port = "#########",
                                 user = "##########",
@@ -263,6 +293,13 @@ for (h in cnpj_arquivos) {
                                                "91", "92", "93", "94", "95", "96",
                                                "97", "99") ~ "Serviço"
           ))
+  
+  cnpj_estabelecimentos <- cnpj_estabelecimentos |>
+    fuzzyjoin::stringdist_left_join(
+      territorialidade_sedec,
+      method = "jw",       # Método Jaro-Winkler (bom para similaridades em nomes)
+      max_dist = 0.15      # Definindo um limite de distância para considerar uma correspondência
+    )
   
   # writing PostgreSQL
   if (h == 0) {
