@@ -96,9 +96,9 @@ cnpj_decodificador_lista[[6]] <- cnpj_decodificador_lista[[6]] |>
 conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
                                 dbname = "########",
                                 host = "##########",
-                                port = "############",
-                                user = "###########",
-                                password = "##############")
+                                port = "#########",
+                                user = "##########",
+                                password = "############")
 
 RPostgres::dbListTables(conexao)
 
@@ -204,6 +204,41 @@ for (h in cnpj_arquivos) {
                       situacao_cadastral == "08" ~ "Baixada"), .keep = "unused"
                   ) #pensar em talvez juntar cnpj, dentre outros como cnae e atribuir latitude e longitude
   
+  
+  cnpj_estabelecimentos <- cnpj_estabelecimentos |> dplyr::mutate(
+    telefone_1 = dplyr::case_when(
+      is.na(ddd1) & is.na(telefone1) ~ NA_character_,
+      TRUE ~ paste0("(", ddd1, ") ", telefone1)
+      ),.keep = "unused"
+    )
+  
+  cnpj_estabelecimentos <- cnpj_estabelecimentos |> dplyr::mutate(
+    telefone_2 = dplyr::case_when(
+      is.na(ddd2) & is.na(telefone2) ~ NA_character_,
+      TRUE ~ paste0("(", ddd2, ") ", telefone2)
+    ),.keep = "unused"
+  )
+  
+  cnpj_estabelecimentos <- cnpj_estabelecimentos |> dplyr::mutate(
+    fax = dplyr::case_when(
+      is.na(ddd_fax) & is.na(fax) ~ NA_character_,
+      TRUE ~ paste0("(", ddd_fax, ") ", fax)
+    ),.keep = "unused"
+  )
+  
+  cnpj_estabelecimentos <- cnpj_estabelecimentos |>
+    dplyr::mutate(
+      cnpj_formatado = sprintf(
+        "%s.%s.%s/%s-%s",
+        substr(cnpj_basico, 1, 2), # Primeiros dois dígitos
+        substr(cnpj_basico, 3, 5), # Próximos três dígitos
+        substr(cnpj_basico, 6, 8), # Últimos três dígitos do básico
+        cnpj_ordem,               # Quatro dígitos da ordem
+        cnpj_dv                  # Dois dígitos verificadores
+      )
+    )
+  
+  
   cnpj_estabelecimentos <- cnpj_estabelecimentos |>
     dplyr::mutate(
       cnae_grande_grupamento_novocaged =
@@ -226,7 +261,7 @@ for (h in cnpj_arquivos) {
                                                "77", "78", "79", "80", "81", "82",
                                                "84", "85", "86", "87", "88","90",
                                                "91", "92", "93", "94", "95", "96",
-                                               "97", "99") ~ "Construção"
+                                               "97", "99") ~ "Serviço"
           ))
   
   # writing PostgreSQL
