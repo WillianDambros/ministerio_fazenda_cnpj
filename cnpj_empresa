@@ -92,11 +92,11 @@ cnpj_decodificador_lista[[6]] <- cnpj_decodificador_lista[[6]] |>
 # writing PostgreSQL
 
 conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
-                                dbname = "#########",
-                                host = "##########",
-                                port = "##########",
-                                user = "##########",
-                                password = "###########")
+                                dbname = "########",
+                                host = "#######",
+                                port = "#######",
+                                user = "#######",
+                                password = "########")
 
 RPostgres::dbListTables(conexao)
 
@@ -108,7 +108,7 @@ cnpj_empresas_enderecos <- fs::dir_ls(glob = "*Empresas*.zip")
 
 ######## Empresas
 
-cnpj_arquivos <- 1:3
+cnpj_arquivos <- 0:9
 
 # Loop para ler arquivos por vez
 for (h in cnpj_arquivos) {
