@@ -124,11 +124,11 @@ territorialidade_sedec$municipios_decodificado <-
 # Fazendo conexão com o banco de dados
 
 conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
-                                dbname = "#########",
-                                host = "##########",
-                                port = "#########",
-                                user = "##########",
-                                password = "############")
+                                dbname = "###########",
+                                host = "#############",
+                                port = "############",
+                                user = "###########",
+                                password = "##############")
 
 RPostgres::dbListTables(conexao)
 
