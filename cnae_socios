@@ -102,7 +102,7 @@ RPostgres::dbListTables(conexao)
 
 schema_name <- "ministerio_fazenda_cnpj"
 
-table_name <- "cnpj_estabelecimentos"
+table_name <- "cnpj_socios"
 
 DBI::dbSendQuery(conexao, paste0("CREATE SCHEMA IF NOT EXISTS ", schema_name))
 
