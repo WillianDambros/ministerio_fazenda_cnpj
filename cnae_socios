@@ -1,4 +1,3 @@
-
 ########################################### Downloading ########################
 dir.create("data")
 
@@ -47,7 +46,7 @@ for (item in arquivos_combinados) {
 # tentar verificar se é possivel criar pasta por ano para o exercicio ficar ano mes
 
 #################################################### Decodificador #############
-
+setwd("data")
 cnpj_decodificador_enderecos <-
 fs::dir_ls(glob = "*Cnaes*.zip|*Motivos*.zip|*Municipios*.zip|*Naturezas*.zip|
            |*Paises*.zip|*Qualificacoes*.zip")
@@ -94,10 +93,10 @@ cnpj_decodificador_lista[[6]] <- cnpj_decodificador_lista[[6]] |>
 
 conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
                                 dbname = "observatorio_db",
-                                host = "#######",
-                                port = "#######",
-                                user = "##########",
-                                password = "##########")
+                                host = "10.43.88.8",
+                                port = "5502",
+                                user = "admin",
+                                password = "adminadmin")
 
 RPostgres::dbListTables(conexao)
 
@@ -113,7 +112,7 @@ DBI::dbSendQuery(conexao, paste0("CREATE SCHEMA IF NOT EXISTS ", schema_name))
 setwd("data")
 
 cnpj_arquivos <- 0:9
-h <- 1
+
 # Loop para ler arquivos por vez
 for (h in cnpj_arquivos) {
   
@@ -132,7 +131,7 @@ for (h in cnpj_arquivos) {
                                               decimal_mark = ","),
                        col_names = F,
                        col_types = readr::cols(
-                         "X6" = readr::col_date(format = "%Y%m%d"),
+                         #"X6" = readr::col_date(format = "%Y%m%d"),
                          .default = readr::col_character()
                          ))
     }
@@ -171,34 +170,48 @@ for (h in cnpj_arquivos) {
                     dplyr::case_when(
                       identificador_de_socio == "1" ~ "PESSOA JURÍDICA",
                       identificador_de_socio == "2" ~ "PESSOA FISICA",
-                  identificador_de_socio == "3" ~ "ESTRANGEIRO"),.keep = "unused"
+                      identificador_de_socio == "3" ~ "ESTRANGEIRO"),
+                  .keep = "unused"
   )
   
+  cnpj_socios <- cnpj_socios |>
+    dplyr::mutate(faixa_etaria =
+                    dplyr::case_when(
+                      faixa_etaria == "1" ~ "0 a 12 anos",
+                      faixa_etaria == "2" ~ "13 a 20 anos",
+                      faixa_etaria == "3" ~ "21 a 30 anos",
+                      faixa_etaria == "4" ~ "31 a 40 anos",
+                      faixa_etaria == "5" ~ "41 a 50 anos",
+                      faixa_etaria == "6" ~ "51 a 60 anos",
+                      faixa_etaria == "7" ~ "61 a 70 anos",
+                      faixa_etaria == "8" ~ "71 a 80 anos",
+                      faixa_etaria == "9" ~ "maiores de 80 anos",
+                      faixa_etaria == "9" ~ "Não se aplica"),
+                  .keep = "unused"
+    )
   
   cnpj_socios <- cnpj_socios |> 
     dplyr::left_join(cnpj_decodificador_lista[[6]],
                      dplyr::join_by(qualificacao_socio ==
-                                      qualificacao_responsavel_decodificado)) |>
+                                      qualificacao_responsavel)) |>
     dplyr::select(-qualificacao_socio) |>
-    dplyr::rename(qualificacao_socio = qualificacao_responsavel)
+    dplyr::rename(qualificacao_socio = qualificacao_responsavel_decodificado)
   
   cnpj_socios <- cnpj_socios |> 
     dplyr::left_join(cnpj_decodificador_lista[[6]],
                      dplyr::join_by(qualificacao_representante_legal ==
-                                      qualificacao_responsavel_decodificado)) |>
+                                      qualificacao_responsavel)) |>
     dplyr::select(-qualificacao_representante_legal) |>
-    dplyr::rename(qualificacao_representante_legal = qualificacao_responsavel)
+    dplyr::rename(qualificacao_representante_legal =
+                    qualificacao_responsavel_decodificado)
   
-  
-  cnpj_socios|> dplyr::glimpse()
-  cnpj_socios$qualificacao_representante_legal |> unique()
     
   # writing PostgreSQL
   if (h == 0) {
     RPostgres::dbWriteTable(
       conexao,
       name = DBI::Id(schema = schema_name, table = table_name),
-      value = cnpj_estabelecimentos,
+      value = cnpj_socios,
       row.names = FALSE,
       overwrite = TRUE
       )
@@ -207,15 +220,14 @@ for (h in cnpj_arquivos) {
       RPostgres::dbWriteTable(
         conexao,
         name = DBI::Id(schema = schema_name, table = table_name),
-        value = cnpj_estabelecimentos,
+        value = cnpj_socios,
         row.names = FALSE,
         append = TRUE
       )
       }
 
-  cnpj_estabelecimentos |> dplyr::glimpse()
+  cnpj_socios |> dplyr::glimpse()
   print(h) 
 } #fim do loop
 
 RPostgres::dbDisconnect(conexao)
-
