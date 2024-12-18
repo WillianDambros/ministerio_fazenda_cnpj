@@ -92,11 +92,11 @@ cnpj_decodificador_lista[[6]] <- cnpj_decodificador_lista[[6]] |>
 # Fazendo conexão com o banco de dados
 
 conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
-                                dbname = "observatorio_db",
-                                host = "10.43.88.8",
-                                port = "5502",
-                                user = "admin",
-                                password = "adminadmin")
+                                dbname = "###########",
+                                host = "##########",
+                                port = "##########",
+                                user = "##########",
+                                password = "############")
 
 RPostgres::dbListTables(conexao)
 
