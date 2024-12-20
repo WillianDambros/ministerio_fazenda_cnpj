@@ -1,3 +1,4 @@
+
 ########################################### Downloading ########################
 dir.create("data")
 
@@ -115,7 +116,11 @@ territorialidade_sedec <- territorialidade_sedec |>
 
 
 territorialidade_sedec$municipios_decodificado <-
-  toupper(territorialidade_sedec$municipios_decodificado)
+  toupper(territorialidade_sedec$municipios_decodificado) |> 
+  dplyr::mutate(
+    territorio_latitude = as.numeric(gsub(",", ".", territorio_latitude)),
+    territorio_longitude = as.numeric(gsub(",", ".", territorio_longitude))
+    )
 
 ################################################## Estabelecimentos ############
 
@@ -123,11 +128,11 @@ territorialidade_sedec$municipios_decodificado <-
 # Fazendo conexão com o banco de dados
 
 conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
-                                dbname = "#########",
+                                dbname = "########",
                                 host = "#########",
-                                port = "#########",
-                                user = "##########",
-                                password = "#############")
+                                port = "##########",
+                                user = "############",
+                                password = "###########")
 
 RPostgres::dbListTables(conexao)
 
