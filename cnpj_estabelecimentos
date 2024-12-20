@@ -1,9 +1,8 @@
-
 ########################################### Downloading ########################
 dir.create("data")
 
 anos <- lubridate::year(lubridate::today())
-meses <- lubridate::month(lubridate::today()) - 1
+meses <- lubridate::month(lubridate::today())
 
 # Combina os arquivos das duas categorias
 arquivos_combinados <- list(
@@ -47,13 +46,13 @@ for (item in arquivos_combinados) {
 # tentar verificar se é possivel criar pasta por ano para o exercicio ficar ano mes
 
 #################################################### Decodificador #############
-
+setwd("data")
 cnpj_decodificador_enderecos <-
-fs::dir_ls(glob = "*Cnaes*.zip|*Motivos*.zip|*Municipios*.zip|*Naturezas*.zip|
+  fs::dir_ls(glob = "*Cnaes*.zip|*Motivos*.zip|*Municipios*.zip|*Naturezas*.zip|
            |*Paises*.zip|*Qualificacoes*.zip")
 
 cnpj_decodificador_lista <- vector(mode = "list",
-                             length = length(cnpj_decodificador_enderecos))
+                                   length = length(cnpj_decodificador_enderecos))
 
 for (i in seq_along(cnpj_decodificador_enderecos)){
   
@@ -64,7 +63,7 @@ for (i in seq_along(cnpj_decodificador_enderecos)){
                      col_names = F,
                      col_types = readr::cols(.default = readr::col_character()
                      ))
-                     
+  
 }
 
 cnpj_decodificador_lista[[1]] <- cnpj_decodificador_lista[[1]] |>
@@ -124,11 +123,11 @@ territorialidade_sedec$municipios_decodificado <-
 # Fazendo conexão com o banco de dados
 
 conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
-                                dbname = "###########",
-                                host = "#############",
-                                port = "############",
-                                user = "###########",
-                                password = "##############")
+                                dbname = "#########",
+                                host = "#########",
+                                port = "#########",
+                                user = "##########",
+                                password = "#############")
 
 RPostgres::dbListTables(conexao)
 
@@ -166,9 +165,9 @@ for (h in cnpj_arquivos) {
                          "X11" = readr::col_date(format = "%Y%m%d"),
                          "X30" = readr::col_date(format = "%Y%m%d"),
                          .default = readr::col_character()
-                         )) |>
+                       )) |>
       dplyr::filter(X20 == "MT")
-    }
+  }
   
   # Nomeando Colunas
   cnpj_estabelecimentos <- cnpj_estabelecimentos_lista |>
@@ -210,7 +209,7 @@ for (h in cnpj_arquivos) {
       cnpj_estabelecimentos <- cnpj_estabelecimentos |>
         dplyr::left_join(cnpj_decodificador_lista[[j]])
     }, error = function(err) {warning("file could not be join")})
-    }
+  }
   
   cnpj_estabelecimentos <- cnpj_estabelecimentos |>
     dplyr::select(- motivos_situacao_cadastral,
@@ -222,7 +221,7 @@ for (h in cnpj_arquivos) {
                     dplyr::case_when(
                       matriz_filial == "1" ~ "Matriz",
                       matriz_filial == "2" ~ "Filial"), .keep = "unused"
-                  )
+    )
   
   cnpj_estabelecimentos <- cnpj_estabelecimentos |>
     dplyr::mutate(situacao_cadastral =
@@ -232,15 +231,15 @@ for (h in cnpj_arquivos) {
                       situacao_cadastral == "03" ~ "Suspensa",
                       situacao_cadastral == "04" ~ "Inapta",
                       situacao_cadastral == "08" ~ "Baixada"), .keep = "unused"
-                  ) #pensar em talvez juntar cnpj, dentre outros como cnae e atribuir latitude e longitude
+    ) #pensar em talvez juntar cnpj, dentre outros como cnae e atribuir latitude e longitude
   
   
   cnpj_estabelecimentos <- cnpj_estabelecimentos |> dplyr::mutate(
     telefone_1 = dplyr::case_when(
       is.na(ddd1) & is.na(telefone1) ~ NA_character_,
       TRUE ~ paste0("(", ddd1, ") ", telefone1)
-      ),.keep = "unused"
-    )
+    ),.keep = "unused"
+  )
   
   cnpj_estabelecimentos <- cnpj_estabelecimentos |> dplyr::mutate(
     telefone_2 = dplyr::case_when(
@@ -292,7 +291,7 @@ for (h in cnpj_arquivos) {
                                                "84", "85", "86", "87", "88","90",
                                                "91", "92", "93", "94", "95", "96",
                                                "97", "99") ~ "Serviço"
-          ))
+        ))
   
   cnpj_estabelecimentos <- cnpj_estabelecimentos |>
     fuzzyjoin::stringdist_left_join(
@@ -300,6 +299,108 @@ for (h in cnpj_arquivos) {
       method = "jw",       # Método Jaro-Winkler (bom para similaridades em nomes)
       max_dist = 0.15      # Definindo um limite de distância para considerar uma correspondência
     )
+  
+  cnpj_estabelecimentos <- cnpj_estabelecimentos |>
+    dplyr::mutate(
+      cnae_divisao =
+        dplyr::case_when(
+          stringr::str_sub(cnaes, 1, 2) == "01" ~ "agricultura, pecuária e serviços relacionados",
+          stringr::str_sub(cnaes, 1, 2) == "02" ~ "produção florestal",
+          stringr::str_sub(cnaes, 1, 2) == "03" ~ "pesca e aqüicultura",
+          stringr::str_sub(cnaes, 1, 2) == "05" ~ "extração de carvão mineral",
+          stringr::str_sub(cnaes, 1, 2) == "06" ~ "extração de petróleo e gás natural",
+          stringr::str_sub(cnaes, 1, 2) == "07" ~ "extração de minerais metálicos",
+          stringr::str_sub(cnaes, 1, 2) == "08" ~ "extração de minerais não metálicos",
+          stringr::str_sub(cnaes, 1, 2) == "09" ~ "atividades de apoio à extração de minerais",
+          
+          stringr::str_sub(cnaes, 1, 2) == "10" ~ "fabricação de produtos alimentícios",
+          stringr::str_sub(cnaes, 1, 2) == "11" ~ "fabricação de bebidas",
+          stringr::str_sub(cnaes, 1, 2) == "12" ~ "fabricação de produtos do fumo",
+          stringr::str_sub(cnaes, 1, 2) == "13" ~ "fabricação de produtos têxteis",
+          stringr::str_sub(cnaes, 1, 2) == "14" ~ "confecção de artigos do vestuário e acessórios",
+          stringr::str_sub(cnaes, 1, 2) == "15" ~ "preparação de couros e fabricação de artefatos de couro, artigos para viagem e calçados",
+          stringr::str_sub(cnaes, 1, 2) == "16" ~ "fabricação de produtos de madeira",
+          stringr::str_sub(cnaes, 1, 2) == "17" ~ "fabricação de celulose, papel e produtos de papel",
+          stringr::str_sub(cnaes, 1, 2) == "18" ~ "impressão e reprodução de gravações",
+          stringr::str_sub(cnaes, 1, 2) == "19" ~ "fabricação de coque, de produtos derivados do petróleo e de biocombustíveis",
+          
+          stringr::str_sub(cnaes, 1, 2) == "20" ~ "fabricação de produtos químicos",
+          stringr::str_sub(cnaes, 1, 2) == "21" ~ "fabricação de produtos farmoquímicos e farmacêuticos",
+          stringr::str_sub(cnaes, 1, 2) == "22" ~ "fabricação de produtos de borracha e de material plástico",
+          stringr::str_sub(cnaes, 1, 2) == "23" ~ "fabricação de produtos de minerais não metálicos",
+          stringr::str_sub(cnaes, 1, 2) == "24" ~ "metalurgia",
+          stringr::str_sub(cnaes, 1, 2) == "25" ~ "fabricação de produtos de metal, exceto máquinas e equipamentos",
+          stringr::str_sub(cnaes, 1, 2) == "26" ~ "fabricação de equipamentos de informática, produtos eletrônicos e ópticos",
+          stringr::str_sub(cnaes, 1, 2) == "27" ~ "fabricação de máquinas, aparelhos e materiais elétricos",
+          stringr::str_sub(cnaes, 1, 2) == "28" ~ "fabricação de máquinas e equipamentoss",
+          stringr::str_sub(cnaes, 1, 2) == "29" ~ "fabricação de veículos automotores, reboques e carrocerias",
+          
+          stringr::str_sub(cnaes, 1, 2) == "30" ~ "fabricação de outros equipamentos de transporte, exceto veículos automotores",
+          stringr::str_sub(cnaes, 1, 2) == "31" ~ "fabricação de móveis",
+          stringr::str_sub(cnaes, 1, 2) == "32" ~ "fabricação de produtos diversos",
+          stringr::str_sub(cnaes, 1, 2) == "33" ~ "manutenção, reparação e instalação de máquinas e equipamentos",
+          stringr::str_sub(cnaes, 1, 2) == "35" ~ "eletricidade, gás e outras utilidades",
+          stringr::str_sub(cnaes, 1, 2) == "36" ~ "captação, tratamento e distribuição de água",
+          stringr::str_sub(cnaes, 1, 2) == "37" ~ "esgoto e atividades relacionadas",
+          stringr::str_sub(cnaes, 1, 2) == "38" ~ "coleta, tratamento e disposição de resíduos; recuperação de materiais",
+          stringr::str_sub(cnaes, 1, 2) == "39" ~ "descontaminação e outros serviços de gestão de resíduos",
+          
+          stringr::str_sub(cnaes, 1, 2) == "41" ~ "construção de edifícios",
+          stringr::str_sub(cnaes, 1, 2) == "42" ~ "obras de infraestrutura",
+          stringr::str_sub(cnaes, 1, 2) == "43" ~ "serviços especializados para construção",
+          stringr::str_sub(cnaes, 1, 2) == "45" ~ "comércio e reparação de veículos automotores e motocicletas",
+          stringr::str_sub(cnaes, 1, 2) == "46" ~ "comércio por atacado, exceto veículos automotores e motocicletas",
+          stringr::str_sub(cnaes, 1, 2) == "47" ~ "comércio varejista",
+          stringr::str_sub(cnaes, 1, 2) == "49" ~ "transporte terrestre",
+          
+          stringr::str_sub(cnaes, 1, 2) == "50" ~ "transporte aquaviário",
+          stringr::str_sub(cnaes, 1, 2) == "51" ~ "transporte aéreo",
+          stringr::str_sub(cnaes, 1, 2) == "52" ~ "armazenamento e atividades auxiliares dos transportes",
+          stringr::str_sub(cnaes, 1, 2) == "53" ~ "correio e outras atividades de entrega",
+          stringr::str_sub(cnaes, 1, 2) == "55" ~ "alojamento",
+          stringr::str_sub(cnaes, 1, 2) == "56" ~ "alimentação",
+          stringr::str_sub(cnaes, 1, 2) == "58" ~ "edição e edição integrada à impressão",
+          stringr::str_sub(cnaes, 1, 2) == "59" ~ "atividades cinematográficas, produção de vídeos e de programas de televisão; gravação de som e edição de música",
+          
+          stringr::str_sub(cnaes, 1, 2) == "60" ~ "atividades de rádio e de televisão",
+          stringr::str_sub(cnaes, 1, 2) == "61" ~ "telecomunicações",
+          stringr::str_sub(cnaes, 1, 2) == "62" ~ "atividades dos serviços de tecnologia da informação",
+          stringr::str_sub(cnaes, 1, 2) == "63" ~ "atividades de prestação de serviços de informação",
+          stringr::str_sub(cnaes, 1, 2) == "64" ~ "atividades de serviços financeiros",
+          stringr::str_sub(cnaes, 1, 2) == "65" ~ "seguros, resseguros, previdência complementar e planos de saúde",
+          stringr::str_sub(cnaes, 1, 2) == "66" ~ "atividades auxiliares dos serviços financeiros, seguros, previdência complementar e planos de saúde",
+          stringr::str_sub(cnaes, 1, 2) == "68" ~ "atividades imobiliárias",
+          stringr::str_sub(cnaes, 1, 2) == "69" ~ "atividades jurídicas, de contabilidade e de auditoria",
+          
+          stringr::str_sub(cnaes, 1, 2) == "70" ~ "atividades de sedes de empresas e de consultoria em gestão empresarial",
+          stringr::str_sub(cnaes, 1, 2) == "71" ~ "serviços de arquitetura e engenharia; testes e análises técnicas",
+          stringr::str_sub(cnaes, 1, 2) == "72" ~ "pesquisa e desenvolvimento científico",
+          stringr::str_sub(cnaes, 1, 2) == "73" ~ "publicidade e pesquisa de mercado",
+          stringr::str_sub(cnaes, 1, 2) == "74" ~ "outras atividades profissionais, científicas e técnicas",
+          stringr::str_sub(cnaes, 1, 2) == "75" ~ "atividades veterinárias",
+          stringr::str_sub(cnaes, 1, 2) == "77" ~ "aluguéis não imobiliários e gestão de ativos intangíveis não financeiros",
+          stringr::str_sub(cnaes, 1, 2) == "78" ~ "seleção, agenciamento e locação de mão de obra",
+          stringr::str_sub(cnaes, 1, 2) == "79" ~ "agências de viagens, operadores turísticos e serviços de reservas",
+          
+          stringr::str_sub(cnaes, 1, 2) == "80" ~ "atividades de vigilância, segurança e investigação",
+          stringr::str_sub(cnaes, 1, 2) == "81" ~ "serviços para edifícios e atividades paisagísticas",
+          stringr::str_sub(cnaes, 1, 2) == "82" ~ "serviços de escritório, de apoio administrativo e outros serviços prestados principalmente às empresas",
+          stringr::str_sub(cnaes, 1, 2) == "84" ~ "administração pública, defesa e seguridade social",
+          stringr::str_sub(cnaes, 1, 2) == "85" ~ "educação",
+          stringr::str_sub(cnaes, 1, 2) == "86" ~ "atividades de atenção à saúde humana",
+          stringr::str_sub(cnaes, 1, 2) == "87" ~ "atividades de atenção à saúde humana integradas com assistência social, prestadas em residências coletivas e particulares",
+          stringr::str_sub(cnaes, 1, 2) == "88" ~ "serviços de assistência social sem alojamento",
+          
+          stringr::str_sub(cnaes, 1, 2) == "90" ~ "atividades artísticas, criativas e de espetáculos",
+          stringr::str_sub(cnaes, 1, 2) == "91" ~ "atividades ligadas ao patrimônio cultural e ambiental",
+          stringr::str_sub(cnaes, 1, 2) == "92" ~ "atividades de exploração de jogos de azar e apostas",
+          stringr::str_sub(cnaes, 1, 2) == "93" ~ "atividades esportivas e de recreação e lazer",
+          stringr::str_sub(cnaes, 1, 2) == "94" ~ "atividades de organizações associativas",
+          stringr::str_sub(cnaes, 1, 2) == "95" ~ "reparação e manutenção de equipamentos de informática e comunicação e de objetos pessoais e domésticos",
+          stringr::str_sub(cnaes, 1, 2) == "96" ~ "outras atividades de serviços pessoais",
+          stringr::str_sub(cnaes, 1, 2) == "97" ~ "serviços domésticos",
+          stringr::str_sub(cnaes, 1, 2) == "99" ~ "organismos internacionais e outras instituições extraterritoriais"
+        ))
   
   # writing PostgreSQL
   if (h == 0) {
@@ -309,18 +410,18 @@ for (h in cnpj_arquivos) {
       value = cnpj_estabelecimentos,
       row.names = FALSE,
       overwrite = TRUE
-      )
-    } else {
-      # Inserir os dados na tabela existente (append = TRUE)
-      RPostgres::dbWriteTable(
-        conexao,
-        name = DBI::Id(schema = schema_name, table = table_name),
-        value = cnpj_estabelecimentos,
-        row.names = FALSE,
-        append = TRUE
-      )
-      }
-
+    )
+  } else {
+    # Inserir os dados na tabela existente (append = TRUE)
+    RPostgres::dbWriteTable(
+      conexao,
+      name = DBI::Id(schema = schema_name, table = table_name),
+      value = cnpj_estabelecimentos,
+      row.names = FALSE,
+      append = TRUE
+    )
+  }
+  
   cnpj_estabelecimentos |> dplyr::glimpse()
   print(h) 
 } #fim do loop
