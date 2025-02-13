@@ -1,0 +1,70 @@
+# Criar diretório apenas se não existir
+if (!dir.exists("data")) dir.create("data")
+setwd("data")
+
+anos <- lubridate::year(lubridate::today())
+meses <- sprintf("%02d", lubridate::month(lubridate::today()))  # Garante formato MM
+
+# Definição das categorias e arquivos
+arquivos_combinados <- list(
+  list(tipo = "Empresas", nomes = c("Empresas", "Estabelecimentos", "Socios"),
+       indices = 0:9),
+  list(tipo = "Outros", nomes = c("Cnaes", "Motivos", "Municipios", "Naturezas",
+                                  "Paises", "Qualificacoes", "Simples"),
+       indices = NULL)
+)
+
+# Loop para download dos arquivos
+for (item in arquivos_combinados) {
+  tipo <- item$tipo
+  nomes <- item$nomes
+  indices <- item$indices
+  
+  for (nome in nomes) {
+    if (!is.null(indices)) {
+      for (indice in indices) {
+        url <- paste0("https://arquivos.receitafederal.gov.br/",
+                      "dados/cnpj/dados_abertos_cnpj/",
+                      anos, "-", meses, "/", nome, indice, ".zip")
+        destfile <- paste0(nome, indice, ".zip")
+        
+        # Tentativa de download com repetição em caso de falha
+        sucesso <- FALSE
+        while (!sucesso) {
+          tryCatch(
+            {
+              curl::curl_download(url, destfile)
+              message("Download concluído: ", destfile)
+              sucesso <- TRUE  # Sai do loop se o download for bem-sucedido
+            },
+            error = function(e) {
+              message("Erro ao baixar: ", url, " - Tentando novamente em 5s...")
+              Sys.sleep(5)  # Aguarda 5 segundos antes de tentar novamente
+            }
+          )
+        }
+      }
+    } else {
+      url <- paste0("https://arquivos.receitafederal.gov.br/",
+                    "dados/cnpj/dados_abertos_cnpj/",
+                    anos, "-", meses, "/", nome, ".zip")
+      destfile <- paste0(nome, ".zip")
+      
+      # Tentativa de download com repetição em caso de falha
+      sucesso <- FALSE
+      while (!sucesso) {
+        tryCatch(
+          {
+            curl::curl_download(url, destfile)
+            message("Download concluído: ", destfile)
+            sucesso <- TRUE  # Sai do loop se o download for bem-sucedido
+          },
+          error = function(e) {
+            message("Erro ao baixar: ", url, " - Tentando novamente em 5s...")
+            Sys.sleep(5)  # Aguarda 5 segundos antes de tentar novamente
+          }
+        )
+      }
+    }
+  }
+}
