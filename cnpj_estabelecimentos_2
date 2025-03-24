@@ -1,0 +1,106 @@
+# Lendo cnpj_estabelecimento do banco de dados
+
+conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
+                                dbname = "###########",
+                                host = "###########",
+                                port = "############",
+                                user = "##############",
+                                password = "#############")
+
+RPostgres::dbListTables(conexao)
+
+schema_name <- "ministerio_fazenda_cnpj"
+
+table_name <- "cnpj_estabelecimentos"
+
+cnpj_estabelecimentos <- RPostgres::dbReadTable(conexao,
+                                                DBI::Id(schema= schema_name,
+                                                        table = table_name))
+
+RPostgres::dbDisconnect(conexao)
+
+cnpj_estabelecimentos |> dplyr::glimpse()
+
+# Baixando arquivo consulta credenciamento sefaz
+
+url <- paste0("https://www.sefaz.mt.gov.br/rcr-fe-api/v1/",
+              "processo/downloadConsultaCredenciamentos")
+
+response <- httr::GET(url)
+
+# Verificar se a requisição foi bem-sucedida
+if (httr::status_code(response) == 200) {
+  # 2. Salvar o conteúdo bruto
+  writeBin(httr::content(response, "raw"), "ConsultaCredenciamentos")
+  
+  # 3. Verificar se é um arquivo ZIP
+  if (length(unzip("ConsultaCredenciamentos", list = TRUE)$Name) > 0) {
+    message("O arquivo é um ZIP, extraindo...")
+    
+    # Criar diretório se não existir
+    if (!dir.exists("sefaz_consulta_credenciamento"))
+      dir.create("sefaz_consulta_credenciamento")
+    
+    # Extrair arquivos
+    unzip("ConsultaCredenciamentos", exdir = "sefaz_consulta_credenciamento")
+    message("Arquivo extraído na pasta 'sefaz_consulta_credenciamento/'")
+  } else {
+    message("O arquivo não é um ZIP. Tente abrir com um editor de texto.")
+  }
+  
+} else {
+  stop(paste("Erro no download. Status code:", status_code(response)))
+}
+
+# Lendo  sefaz credenciamento
+
+sefaz_credeciamentos <-
+  readr::read_csv2(paste0(getwd(),
+                          "/sefaz_consulta_credenciamento"
+                          ,"/consulta_credenciamentos.csv"),
+                   col_types = readr::cols(.default = readr::col_character()))
+
+sefaz_credeciamentos |> dplyr::glimpse()
+
+sefaz_credeciamentos <- sefaz_credeciamentos |>
+  dplyr::mutate(
+    # Remover espaços extras e converter para data
+    `DATA INICIAL VIGENCIA` = lubridate::dmy(trimws(`DATA INICIAL VIGENCIA`)),
+    `DATA FINAL VIGENCIA` = lubridate::dmy(trimws(`DATA FINAL VIGENCIA`)))
+
+sefaz_credeciamentos|> dplyr::glimpse()
+
+# usando left join
+
+cnpj_estabelecimentos <- cnpj_estabelecimentos |> 
+  dplyr::mutate(cnpj_limpo = stringr::str_remove_all(
+    cnpj_formatado, "[^0-9]")) |>
+  dplyr::left_join(
+    sefaz_credeciamentos,
+    by = dplyr::join_by(cnpj_limpo == `CPF/CNPJ`)) |>
+  dplyr::select(-cnpj_limpo)
+
+cnpj_estabelecimentos |> dplyr::glimpse()
+# writing PostgreSQL
+
+conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
+                                dbname = "##########",
+                                host = "##########",
+                                port = "###########",
+                                user = "###############",
+                                password = "############")
+
+RPostgres::dbListTables(conexao)
+
+schema_name <- "ministerio_fazenda_cnpj"
+
+table_name <- "cnpj_estabelecimentos"
+
+DBI::dbSendQuery(conexao, paste0("CREATE SCHEMA IF NOT EXISTS ", schema_name))
+
+RPostgres::dbWriteTable(conexao,
+                        name = DBI::Id(schema = schema_name,table = table_name),
+                        value = cnpj_estabelecimentos,
+                        row.names = FALSE, overwrite = TRUE)
+
+RPostgres::dbDisconnect(conexao)
