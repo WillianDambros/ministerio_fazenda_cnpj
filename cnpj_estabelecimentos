@@ -1,51 +1,3 @@
-
-########################################### Downloading ########################
-dir.create("data")
-
-anos <- lubridate::year(lubridate::today())
-meses <- lubridate::month(lubridate::today())
-
-# Combina os arquivos das duas categorias
-arquivos_combinados <- list(
-  list(tipo = "Empresas", nomes = c("Empresas", "Estabelecimentos", "Socios"),
-       indices = 0:9),
-  list(tipo = "Outros", nomes = c("Cnaes", "Motivos", "Municipios", "Naturezas",
-                                  "Paises", "Qualificacoes", "Simples"),
-       indices = NULL)
-)
-
-# Loop único
-for (item in arquivos_combinados) {
-  tipo <- item$tipo
-  nomes <- item$nomes
-  indices <- item$indices
-  
-  for (nome in nomes) {
-    if (!is.null(indices)) {
-      for (indice in indices) {
-        curl::curl_download(
-          paste0("https://arquivos.receitafederal.gov.br/",
-                 "dados/cnpj/dados_abertos_cnpj/",
-                 anos, "-", meses, "/", nome, indice, ".zip"),
-          destfile = paste0("data/", anos, "_", meses, "_", nome, indice, ".zip")
-        )
-      }
-    } else {
-      curl::curl_download(
-        paste0("https://arquivos.receitafederal.gov.br/",
-               "dados/cnpj/dados_abertos_cnpj/",
-               anos, "-", meses, "/", nome, ".zip"),
-        destfile = paste0("data/", anos, "_", meses, "_", nome, ".zip")
-      )
-    }
-  }
-}
-
-
-
-# adicionar trycath erro parecido com comexstat
-# tentar verificar se é possivel criar pasta por ano para o exercicio ficar ano mes
-
 #################################################### Decodificador #############
 setwd("data")
 cnpj_decodificador_enderecos <-
@@ -89,7 +41,6 @@ cnpj_decodificador_lista[[6]] <- cnpj_decodificador_lista[[6]] |>
 
 
 ####################################### Compilado_Decodificador ################
-setwd("data")
 
 compilado_decodificador_endereço <-
   paste0("https://github.com/WillianDambros/data_source/raw/",
@@ -115,9 +66,9 @@ territorialidade_sedec <- territorialidade_sedec |>
   dplyr::rename(municipios_decodificado = territorio_geo_munícipios)
 
 
-territorialidade_sedec$municipios_decodificado <-
-  toupper(territorialidade_sedec$municipios_decodificado) |> 
+territorialidade_sedec <- territorialidade_sedec |>
   dplyr::mutate(
+    municipios_decodificado = toupper(municipios_decodificado),
     territorio_latitude = as.numeric(gsub(",", ".", territorio_latitude)),
     territorio_longitude = as.numeric(gsub(",", ".", territorio_longitude))
     )
@@ -128,10 +79,10 @@ territorialidade_sedec$municipios_decodificado <-
 # Fazendo conexão com o banco de dados
 
 conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
-                                dbname = "########",
+                                dbname = "#########",
                                 host = "#########",
-                                port = "##########",
-                                user = "############",
+                                port = "#######",
+                                user = "##########",
                                 password = "###########")
 
 RPostgres::dbListTables(conexao)
@@ -432,3 +383,5 @@ for (h in cnpj_arquivos) {
 } #fim do loop
 
 RPostgres::dbDisconnect(conexao)
+
+cnpj_estabelecimentos |> dplyr::glimpse()
