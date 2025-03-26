@@ -1,26 +1,26 @@
 # Lendo cnpj_estabelecimento do banco de dados
 
-conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
-                                dbname = "###########",
-                                host = "###########",
-                                port = "############",
-                                user = "##############",
-                                password = "#############")
+#conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
+#                                dbname = "##########",
+#                                host = "#########",
+#                                port = "#########",
+#                                user = "##########",
+#                                password = "##############")
 
-RPostgres::dbListTables(conexao)
+#RPostgres::dbListTables(conexao)
 
-schema_name <- "ministerio_fazenda_cnpj"
+#schema_name <- "ministerio_fazenda_cnpj"
 
-table_name <- "cnpj_estabelecimentos"
+#table_name <- "cnpj_estabelecimentos"
 
-cnpj_estabelecimentos <- RPostgres::dbReadTable(conexao,
-                                                DBI::Id(schema= schema_name,
-                                                        table = table_name))
+#cnpj_estabelecimentos <- RPostgres::dbReadTable(conexao,
+#                                                DBI::Id(schema= schema_name,
+#                                                        table = table_name))
 
-RPostgres::dbDisconnect(conexao)
+#RPostgres::dbDisconnect(conexao)
 
-cnpj_estabelecimentos |> dplyr::glimpse()
-
+#cnpj_estabelecimentos |> dplyr::glimpse()
+################################################################################
 # Baixando arquivo consulta credenciamento sefaz
 
 url <- paste0("https://www.sefaz.mt.gov.br/rcr-fe-api/v1/",
@@ -54,53 +54,92 @@ if (httr::status_code(response) == 200) {
 
 # Lendo  sefaz credenciamento
 
-sefaz_credeciamentos <-
-  readr::read_csv2(paste0(getwd(),
-                          "/sefaz_consulta_credenciamento"
-                          ,"/consulta_credenciamentos.csv"),
-                   col_types = readr::cols(.default = readr::col_character()))
+#sefaz_credeciamentos <-
+#  readr::read_csv2(paste0(getwd(),
+#                          "/sefaz_consulta_credenciamento"
+#                          ,"/consulta_credenciamentos.csv"),
+#                   col_types = readr::cols(.default = readr::col_character()))
 
+#sefaz_credeciamentos |> dplyr::glimpse() # não etsva pegando todas as liunhas da tabela
+
+sefaz_credeciamentos <- data.table::fread(
+  file = paste0(getwd(), "/sefaz_consulta_credenciamento/consulta_credenciamentos.csv"),
+  sep = ";", 
+  encoding = "UTF-8",
+  fill = TRUE,          # Preenche linhas incompletas
+  na.strings = c("", "NA"),
+  colClasses = "character"  # Força todas as colunas como texto
+)
 sefaz_credeciamentos |> dplyr::glimpse()
 
+# colocando como data
 sefaz_credeciamentos <- sefaz_credeciamentos |>
   dplyr::mutate(
     # Remover espaços extras e converter para data
     `DATA INICIAL VIGENCIA` = lubridate::dmy(trimws(`DATA INICIAL VIGENCIA`)),
     `DATA FINAL VIGENCIA` = lubridate::dmy(trimws(`DATA FINAL VIGENCIA`)))
 
-sefaz_credeciamentos|> dplyr::glimpse()
 
-# usando left join
+# corrigindo falta de 0 nos CNPJ"s
 
-cnpj_estabelecimentos <- cnpj_estabelecimentos |> 
-  dplyr::mutate(cnpj_limpo = stringr::str_remove_all(
-    cnpj_formatado, "[^0-9]")) |>
-  dplyr::left_join(
-    sefaz_credeciamentos,
-    by = dplyr::join_by(cnpj_limpo == `CPF/CNPJ`)) |>
-  dplyr::select(-cnpj_limpo)
+sefaz_credeciamentos <- sefaz_credeciamentos |>
+  dplyr::mutate(
+    `CPF/CNPJ` = dplyr::case_when(
+      # Condição para manter CPFs com asteriscos
+      stringr::str_detect(`CPF/CNPJ`, "\\*") ~ `CPF/CNPJ`,
+      
+      # Condição padrão para corrigir CNPJs
+      TRUE ~ stringr::str_pad(
+        stringr::str_remove_all(`CPF/CNPJ`, "\\D"),  # Remove caracteres não numéricos
+        width = 14, 
+        side = "left", 
+        pad = "0"
+      )
+    )
+  )
+                
+# Writing file
+
+#nome_arquivo_csv <- "consulta_credenciamentos"
+
+#caminho_arquivo <- paste0(getwd(), "/sefaz_consulta_credenciamento/", nome_arquivo_csv, ".csv")
+
+#readr::write_csv2(sefaz_credeciamentos, caminho_arquivo)
+sefaz_credeciamentos |> dplyr::glimpse()
+
+################################################################################
+# usando left join () leftjoin() não esta peggando todos beneficios ao cnpj multiplos
+
+#cnpj_estabelecimentos <- cnpj_estabelecimentos |> 
+#  dplyr::mutate(cnpj_limpo = stringr::str_remove_all(
+#    cnpj_formatado, "[^0-9]")) |>
+#  dplyr::left_join(
+#    sefaz_credeciamentos,
+#    by = dplyr::join_by(cnpj_limpo == `CPF/CNPJ`)) |>
+#  dplyr::select(-cnpj_limpo)
 
 cnpj_estabelecimentos |> dplyr::glimpse()
+################################################################################
 # writing PostgreSQL
 
 conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
-                                dbname = "##########",
+                                dbname = "############",
                                 host = "##########",
-                                port = "###########",
-                                user = "###############",
-                                password = "############")
+                                port = "##########",
+                                user = "###########",
+                                password = "#############")
 
 RPostgres::dbListTables(conexao)
 
 schema_name <- "ministerio_fazenda_cnpj"
 
-table_name <- "cnpj_estabelecimentos"
+table_name <- "sefaz_credenciamentos"
 
 DBI::dbSendQuery(conexao, paste0("CREATE SCHEMA IF NOT EXISTS ", schema_name))
 
 RPostgres::dbWriteTable(conexao,
                         name = DBI::Id(schema = schema_name,table = table_name),
-                        value = cnpj_estabelecimentos,
+                        value = sefaz_credeciamentos,
                         row.names = FALSE, overwrite = TRUE)
 
 RPostgres::dbDisconnect(conexao)
