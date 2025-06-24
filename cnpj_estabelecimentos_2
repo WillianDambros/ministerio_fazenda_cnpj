@@ -1,11 +1,7 @@
 # Lendo cnpj_estabelecimento do banco de dados
 
-#conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
-#                                dbname = "##########",
-#                                host = "#########",
-#                                port = "#########",
-#                                user = "##########",
-#                                password = "##############")
+#source("X:/POWER BI/NOVOCAGED/conexao.R")
+
 
 #RPostgres::dbListTables(conexao)
 
@@ -122,12 +118,7 @@ cnpj_estabelecimentos |> dplyr::glimpse()
 ################################################################################
 # writing PostgreSQL
 
-conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
-                                dbname = "############",
-                                host = "##########",
-                                port = "##########",
-                                user = "###########",
-                                password = "#############")
+source("X:/POWER BI/NOVOCAGED/conexao.R")
 
 RPostgres::dbListTables(conexao)
 
@@ -143,3 +134,12 @@ RPostgres::dbWriteTable(conexao,
                         row.names = FALSE, overwrite = TRUE)
 
 RPostgres::dbDisconnect(conexao)
+
+# TRABALHO A/ESCRAVO CNPJ ######################################################
+
+
+escravidao_cnpj_csv <- "C:/Users/williandambros/Downloads/cadastro_de_empregadores.csv"
+
+escravidao_cnpj <- readr::read_csv2(escravidao_cnpj_csv,
+                                    locale = readr::locale(encoding = "Latin1"))
+escravidao_cnpj |> dplyr::glimpse()
