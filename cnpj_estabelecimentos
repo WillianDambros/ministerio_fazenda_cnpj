@@ -1,3 +1,4 @@
+
 #################################################### Decodificador #############
 setwd("data")
 cnpj_decodificador_enderecos <-
@@ -78,12 +79,7 @@ territorialidade_sedec <- territorialidade_sedec |>
 
 # Fazendo conexão com o banco de dados
 
-conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
-                                dbname = "#########",
-                                host = "#########",
-                                port = "#######",
-                                user = "##########",
-                                password = "###########")
+source("X:/POWER BI/NOVOCAGED/conexao.R")
 
 RPostgres::dbListTables(conexao)
 
@@ -95,8 +91,6 @@ DBI::dbSendQuery(conexao, paste0("CREATE SCHEMA IF NOT EXISTS ", schema_name))
 
 
 ############ Estabelecimentos
-
-setwd("data")
 
 cnpj_arquivos <- 0:9
 
