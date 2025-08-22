@@ -1,6 +1,7 @@
-
 #################################################### Decodificador #############
+
 setwd("data")
+
 cnpj_decodificador_enderecos <-
   fs::dir_ls(glob = "*Cnaes*.zip|*Motivos*.zip|*Municipios*.zip|*Naturezas*.zip|
            |*Paises*.zip|*Qualificacoes*.zip")
@@ -73,6 +74,11 @@ territorialidade_sedec <- territorialidade_sedec |>
     territorio_latitude = as.numeric(gsub(",", ".", territorio_latitude)),
     territorio_longitude = as.numeric(gsub(",", ".", territorio_longitude))
     )
+
+territorialidade_sedec <- territorialidade_sedec |>
+  dplyr::mutate(municipios_decodificado =
+                  gsub("[^[:alnum:] ]", "", iconv(municipios_decodificado,
+                                                  to = "ASCII//TRANSLIT")))
 
 ################################################## Estabelecimentos ############
 
@@ -247,9 +253,10 @@ for (h in cnpj_arquivos) {
     fuzzyjoin::stringdist_left_join(
       territorialidade_sedec,
       method = "jw",       # Método Jaro-Winkler (bom para similaridades em nomes)
-      max_dist = 0.15      # Definindo um limite de distância para considerar uma correspondência
+      max_dist = 0.05,
+      distance_col = "dist"      # Definindo um limite de distância para considerar uma correspondência
     )
-  
+ 
   cnpj_estabelecimentos <- cnpj_estabelecimentos |>
     dplyr::mutate(
       cnae_divisao =
