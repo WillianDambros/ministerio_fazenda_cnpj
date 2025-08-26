@@ -1,58 +1,12 @@
-########################################### Downloading ########################
-dir.create("data")
-
-anos <- lubridate::year(lubridate::today())
-meses <- lubridate::month(lubridate::today()) - 1
-
-# Combina os arquivos das duas categorias
-arquivos_combinados <- list(
-  list(tipo = "Empresas", nomes = c("Empresas", "Estabelecimentos", "Socios"),
-       indices = 0:9),
-  list(tipo = "Outros", nomes = c("Cnaes", "Motivos", "Municipios", "Naturezas",
-                                  "Paises", "Qualificacoes", "Simples"),
-       indices = NULL)
-)
-
-# Loop único
-for (item in arquivos_combinados) {
-  tipo <- item$tipo
-  nomes <- item$nomes
-  indices <- item$indices
-  
-  for (nome in nomes) {
-    if (!is.null(indices)) {
-      for (indice in indices) {
-        curl::curl_download(
-          paste0("https://arquivos.receitafederal.gov.br/",
-                 "dados/cnpj/dados_abertos_cnpj/",
-                 anos, "-", meses, "/", nome, indice, ".zip"),
-          destfile = paste0("data/", anos, "_", meses, "_", nome, indice, ".zip")
-        )
-      }
-    } else {
-      curl::curl_download(
-        paste0("https://arquivos.receitafederal.gov.br/",
-               "dados/cnpj/dados_abertos_cnpj/",
-               anos, "-", meses, "/", nome, ".zip"),
-        destfile = paste0("data/", anos, "_", meses, "_", nome, ".zip")
-      )
-    }
-  }
-}
-
-
-
-# adicionar trycath erro parecido com comexstat
-# tentar verificar se é possivel criar pasta por ano para o exercicio ficar ano mes
-
 #################################################### Decodificador #############
 setwd("data")
+
 cnpj_decodificador_enderecos <-
-fs::dir_ls(glob = "*Cnaes*.zip|*Motivos*.zip|*Municipios*.zip|*Naturezas*.zip|
+  fs::dir_ls(glob = "*Cnaes*.zip|*Motivos*.zip|*Municipios*.zip|*Naturezas*.zip|
            |*Paises*.zip|*Qualificacoes*.zip")
 
 cnpj_decodificador_lista <- vector(mode = "list",
-                             length = length(cnpj_decodificador_enderecos))
+                                   length = length(cnpj_decodificador_enderecos))
 
 for (i in seq_along(cnpj_decodificador_enderecos)){
   
@@ -63,7 +17,7 @@ for (i in seq_along(cnpj_decodificador_enderecos)){
                      col_names = F,
                      col_types = readr::cols(.default = readr::col_character()
                      ))
-                     
+  
 }
 
 cnpj_decodificador_lista[[1]] <- cnpj_decodificador_lista[[1]] |>
@@ -86,17 +40,31 @@ cnpj_decodificador_lista[[6]] <- cnpj_decodificador_lista[[6]] |>
   dplyr::rename(qualificacao_responsavel = 1,
                 qualificacao_responsavel_decodificado = 2)
 
+#################################################### Leituras ##################
+
+source("X:/POWER BI/NOVOCAGED/conexao.R")
+
+teste <- RPostgres::dbListTables(conexao)
+
+schema_name <- "ministerio_fazenda_cnpj"
+
+table_name <- "cnpj_estabelecimentos"
+
+cnpj_estabelecimentos <- RPostgres::dbReadTable(conexao,
+                                                DBI::Id(schema= schema_name,
+                                                        table = table_name))
+
+RPostgres::dbDisconnect(conexao)
+
+cnpj_estabelecimentos <- cnpj_estabelecimentos |> dplyr::select(cnpj_basico) |>
+  unique()
+
 ################################################## Estabelecimentos ############
 
 
 # Fazendo conexão com o banco de dados
 
-conexao <- RPostgres::dbConnect(RPostgres::Postgres(),
-                                dbname = "###########",
-                                host = "##########",
-                                port = "##########",
-                                user = "##########",
-                                password = "############")
+source("X:/POWER BI/NOVOCAGED/conexao.R")
 
 RPostgres::dbListTables(conexao)
 
@@ -108,8 +76,6 @@ DBI::dbSendQuery(conexao, paste0("CREATE SCHEMA IF NOT EXISTS ", schema_name))
 
 
 ############ Estabelecimentos
-
-setwd("data")
 
 cnpj_arquivos <- 0:9
 
@@ -133,8 +99,8 @@ for (h in cnpj_arquivos) {
                        col_types = readr::cols(
                          #"X6" = readr::col_date(format = "%Y%m%d"),
                          .default = readr::col_character()
-                         ))
-    }
+                       ))
+  }
   
   # Nomeando Colunas
   cnpj_socios <- cnpj_socios_lista |>
@@ -150,7 +116,7 @@ for (h in cnpj_arquivos) {
                   nome_representante_legal = 9,
                   qualificacao_representante_legal = 10,
                   faixa_etaria =11,
-                  )
+    )
   
   # Decodificado Dicionario
   for(j in seq_along(cnpj_decodificador_lista)){
@@ -158,7 +124,7 @@ for (h in cnpj_arquivos) {
       cnpj_socios <- cnpj_socios |>
         dplyr::left_join(cnpj_decodificador_lista[[j]])
     }, error = function(err) {warning("file could not be join")})
-    }
+  }
   
   cnpj_socios <- cnpj_socios |>
     dplyr::select(- paises)
@@ -172,7 +138,7 @@ for (h in cnpj_arquivos) {
                       identificador_de_socio == "2" ~ "PESSOA FISICA",
                       identificador_de_socio == "3" ~ "ESTRANGEIRO"),
                   .keep = "unused"
-  )
+    )
   
   cnpj_socios <- cnpj_socios |>
     dplyr::mutate(faixa_etaria =
@@ -205,7 +171,9 @@ for (h in cnpj_arquivos) {
     dplyr::rename(qualificacao_representante_legal =
                     qualificacao_responsavel_decodificado)
   
-    
+  cnpj_socios <- cnpj_socios |>
+    dplyr::semi_join(cnpj_estabelecimentos, by = "cnpj_basico")
+  
   # writing PostgreSQL
   if (h == 0) {
     RPostgres::dbWriteTable(
@@ -214,18 +182,18 @@ for (h in cnpj_arquivos) {
       value = cnpj_socios,
       row.names = FALSE,
       overwrite = TRUE
-      )
-    } else {
-      # Inserir os dados na tabela existente (append = TRUE)
-      RPostgres::dbWriteTable(
-        conexao,
-        name = DBI::Id(schema = schema_name, table = table_name),
-        value = cnpj_socios,
-        row.names = FALSE,
-        append = TRUE
-      )
-      }
-
+    )
+  } else {
+    # Inserir os dados na tabela existente (append = TRUE)
+    RPostgres::dbWriteTable(
+      conexao,
+      name = DBI::Id(schema = schema_name, table = table_name),
+      value = cnpj_socios,
+      row.names = FALSE,
+      append = TRUE
+    )
+  }
+  
   cnpj_socios |> dplyr::glimpse()
   print(h) 
 } #fim do loop
