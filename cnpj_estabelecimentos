@@ -1,3 +1,4 @@
+
 #################################################### Decodificador #############
 
 setwd("data")
@@ -79,6 +80,15 @@ territorialidade_sedec <- territorialidade_sedec |>
   dplyr::mutate(municipios_decodificado =
                   gsub("[^[:alnum:] ]", "", iconv(municipios_decodificado,
                                                   to = "ASCII//TRANSLIT")))
+
+
+"compilado_decodificador.xlsx" |> readxl::excel_sheets()
+
+cnaes_sedec <- readxl::read_excel("compilado_decodificador.xlsx",
+                                  sheet =  "cnae",
+                                  col_types = "text") |>
+  dplyr::select("cnae_subclasse_codigo_7d",
+                "cnae_atividades_caracteristicas_turismo")
 
 ################################################## Estabelecimentos ############
 
@@ -358,6 +368,11 @@ for (h in cnpj_arquivos) {
           stringr::str_sub(cnaes, 1, 2) == "97" ~ "serviços domésticos",
           stringr::str_sub(cnaes, 1, 2) == "99" ~ "organismos internacionais e outras instituições extraterritoriais"
         ))
+  
+  cnpj_estabelecimentos <- cnpj_estabelecimentos |>
+    dplyr::left_join(cnaes_sedec,
+                     dplyr::join_by(cnaes == cnae_subclasse_codigo_7d))
+  
   
   # writing PostgreSQL
   if (h == 0) {
