@@ -3,20 +3,25 @@
 # METHOD: PROPFIND
 # RESPONSE: XML
 
-# A data esta a mais atual ou precisa de uma data anterior (colocar consdicional)
+ano_messes <- c(format(lubridate::today(), "%Y-%m"),
+                format(lubridate::add_with_rollback(lubridate::today(),
+                                                    months(-1)), "%Y-%m"))
 
-ano_mes <- format(lubridate::today(), "%Y-%m")
-
-endereco <- paste0("https://arquivos.receitafederal.gov.br/public.php/",
-                   "dav/files/gn672Ad4CF8N6TK/Dados/Cadastros/CNPJ/",
-                   ano_mes,"/")
-
-requicisao <- httr::VERB(verb = "PROPFIND",
-                         url = endereco,
-                         httr::add_headers(
-                           Depth = "1"
-                         ))
-
+for(m in ano_messes){
+  
+  endereco <- paste0("https://arquivos.receitafederal.gov.br/public.php/",
+                     "dav/files/gn672Ad4CF8N6TK/Dados/Cadastros/CNPJ/",
+                     m,"/")
+  
+  requisicao <- httr::VERB(verb = "PROPFIND",
+                           url = endereco,
+                           httr::add_headers(Depth = "1")
+                           )
+  
+  if (httr::status_code(requisicao) != 404){
+    break
+  }
+}
 
 xml_txt <- httr::content(requicisao, as = "text", encoding = "UTF-8")
 
